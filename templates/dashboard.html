@@ -4,32 +4,160 @@
 <head>
     <title>Brent Oil Dashboard</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: auto;
+        }
+
+        .filters {
+            margin: 20px 0;
+        }
+
+        .filters input {
+            margin-right: 10px;
+            padding: 5px;
+        }
+
+        .stats {
+            background: #f4f4f4;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .stats p {
+            margin: 5px 0;
+        }
+
+        .chart-container {
+            height: 400px;
+        }
+    </style>
 </head>
 
 <body>
-    <h1>Brent Oil Price Change Point Dashboard</h1>
-    <p>Detected Change Point: {{ change_date }}</p>
-    <p>Mean log return before: {{ mu1 }} | after: {{ mu2 }}</p>
-    <p>Estimated price impact: {{ impact }}%</p>
-    <canvas id="priceChart" width="800" height="400"></canvas>
+    <div class="container">
+        <h1>Brent Oil Price Change Point Dashboard</h1>
+
+        <div class="stats">
+            <p><strong>Detected Change Point:</strong> {{ change_date }}</p>
+            <p><strong>Mean log return before:</strong> {{ mu1 }} | <strong>after:</strong> {{ mu2 }}</p>
+            <p><strong>Estimated price impact:</strong> {{ impact }}%</p>
+        </div>
+
+        <div class="filters">
+            <label>Start: <input type="date" id="startDate"></label>
+            <label>End: <input type="date" id="endDate"></label>
+            <button onclick="fetchData()">Apply Filter</button>
+            <button onclick="resetFilter()">Reset</button>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="priceChart"></canvas>
+        </div>
+
+        <div style="margin-top: 20px;">
+            <h3>📌 Events (Click to filter)</h3>
+            <div id="eventButtons"></div>
+        </div>
+    </div>
+
     <script>
-        fetch('/api/prices')
+        let chartInstance = null;
+        let allData = [];
+        let changePointDate = '{{ change_date }}';
+        let events = [];
+
+        // Fetch events
+        fetch('/api/events')
             .then(res => res.json())
             .then(data => {
-                const ctx = document.getElementById('priceChart').getContext('2d');
-                new Chart(ctx, {
-                    type: 'line',
-                    data: {
-                        labels: data.map(d => d.Date),
-                        datasets: [{
-                            label: 'Brent Oil Price',
-                            data: data.map(d => d.Price),
-                            borderColor: 'blue',
-                            fill: false
-                        }]
-                    }
-                });
+                events = data;
+                renderEventButtons();
             });
+
+        function renderEventButtons() {
+            const container = document.getElementById('eventButtons');
+            container.innerHTML = events.map(e =>
+                `<button onclick="filterByEvent('${e.event_date}')" style="margin:3px;padding:5px 10px;">
+                ${e.event_name} (${e.event_date})
+            </button>`
+            ).join('');
+        }
+
+        function filterByEvent(date) {
+            document.getElementById('startDate').value = date;
+            document.getElementById('endDate').value = date;
+            fetchData();
+        }
+
+        function fetchData() {
+            const start = document.getElementById('startDate').value;
+            const end = document.getElementById('endDate').value;
+            let url = '/api/prices';
+            if (start && end) url += `?start=${start}&end=${end}`;
+            fetch(url)
+                .then(res => res.json())
+                .then(data => {
+                    allData = data;
+                    renderChart(data);
+                });
+        }
+
+        function resetFilter() {
+            document.getElementById('startDate').value = '';
+            document.getElementById('endDate').value = '';
+            fetchData();
+        }
+
+        function renderChart(data) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+            if (chartInstance) chartInstance.destroy();
+
+            const labels = data.map(d => d.Date);
+            const prices = data.map(d => d.Price);
+
+            chartInstance = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Brent Oil Price (USD/barrel)',
+                        data: prices,
+                        borderColor: 'blue',
+                        fill: false,
+                        tension: 0.1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        annotation: {
+                            annotations: [{
+                                type: 'line',
+                                xMin: changePointDate,
+                                xMax: changePointDate,
+                                borderColor: 'red',
+                                borderWidth: 2,
+                                label: {
+                                    content: 'Change Point',
+                                    enabled: true
+                                }
+                            }]
+                        }
+                    }
+                }
+            });
+        }
+
+        // Initial load
+        fetchData();
     </script>
 </body>
 
