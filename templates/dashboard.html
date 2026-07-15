@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Brent Oil Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+    <h1>Brent Oil Price Change Point Dashboard</h1>
+    <p>Detected Change Point: {{ change_date }}</p>
+    <p>Mean log return before: {{ mu1 }} | after: {{ mu2 }}</p>
+    <p>Estimated price impact: {{ impact }}%</p>
+    <canvas id="priceChart" width="800" height="400"></canvas>
+    <script>
+        fetch('/api/prices')
+            .then(res => res.json())
+            .then(data => {
+                const ctx = document.getElementById('priceChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: data.map(d => d.Date),
+                        datasets: [{
+                            label: 'Brent Oil Price',
+                            data: data.map(d => d.Price),
+                            borderColor: 'blue',
+                            fill: false
+                        }]
+                    }
+                });
+            });
+    </script>
+</body>
+
+</html>
